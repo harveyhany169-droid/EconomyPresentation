@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDP231: Inflation Analysis - HUD</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;500;700&display=swap');
+         :root {
+            --neon-blue: #00f2ff;
+            --neon-pink: #ff0055;
+            --deep-space: #020810;
+            --glass: rgba(0, 242, 255, 0.05);
+            --accent-orange: #ff9d00;
+            --border-glow: rgba(0, 242, 255, 0.4);
+        }
+        
+        body {
+            margin: 0;
+            background-color: var(--deep-space);
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        /* --- BACKGROUND CANVAS --- */
+        
+        #bg-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.3;
+        }
+        /* --- TERMINAL UI --- */
+        
+        .terminal {
+            width: 95vw;
+            max-width: 1600px;
+            height: 92vh;
+            background: linear-gradient(135deg, rgba(2, 8, 16, 0.95), rgba(5, 15, 25, 0.95));
+            border: 1px solid var(--border-glow);
+            border-radius: 15px;
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.15), inset 0 0 20px rgba(0, 242, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+        /* --- TOP HEADER --- */
+        
+        .hud-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 20px;
+            /* Minimized padding to shrink border height */
+            border-bottom: 1px solid var(--border-glow);
+            background: linear-gradient(90deg, var(--glass), transparent);
+            border-radius: 15px 15px 0 0;
+        }
+        
+        .status-node {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            color: var(--neon-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-node::before {
+            content: '';
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--neon-blue);
+            animation: pulse 2s infinite;
+        }
+        
+        .counter-glitch {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            color: var(--accent-orange);
+        }
+        /* --- STAGE & SLIDES --- */
+        
+        .stage {
+            flex: 1;
+            padding: 2vh 4vw;
+            /* Reduced vertical padding */
+            position: relative;
+            overflow: hidden;
+            /* STOPS THE SCROLLING */
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .slide {
+            display: none !important;
+            min-height: 100%;
+            opacity: 0;
+            /* Remove animation from here */
+        }
+        
+        .slide.active {
+            display: flex !important;
+            flex-direction: column;
+            justify-content: center;
+            opacity: 1;
+            animation: emerge 0.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+        
+        @keyframes emerge {
+            from {
+                transform: scale(0.98) translateY(10px);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+            100% {
+                opacity: 1;
+            }
+        }
+        /* --- TYPOGRAPHY --- */
+        
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(2rem, 6vh, 3.5rem);
+            /* Scales with screen height */
+            color: var(--neon-blue);
+            margin: 0 0 1vh 0;
+            text-transform: uppercase;
+            line-height: 1.1;
+        }
+        
+        h2 {
+            font-size: clamp(1.5rem, 5vh, 2.5rem);
+            color: #fff;
+            border-left: 5px solid var(--accent-orange);
+            padding-left: 15px;
+            margin-bottom: 2vh;
+            /* Use vh for margins */
+            font-weight: 500;
+        }
+        
+        h22 {
+            font-size: clamp(2.5rem, 7vh, 3.5rem);
+            color: #fff;
+            border-left: 5px solid var(--accent-orange);
+            padding-left: 15px;
+            margin-bottom: 2vh;
+            /* Use vh for margins */
+            font-weight: 500;
+        }
+        
+        .highlight {
+            color: var(--accent-orange);
+            font-weight: bold;
+        }
+        
+        .grid-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            /* Restored a fixed gap for stability */
+            align-items: center;
+            width: 100%;
+            /* REMOVED: flex: 1 so it stops stretching to the floor */
+        }
+        /* --- UI COMPONENTS --- */
+        
+        .data-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1vh;
+            /* Tightened gap */
+        }
+        
+        .data-row {
+            display: flex;
+            align-items: stretch;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--neon-blue);
+        }
+        
+        .data-tag {
+            background: rgba(0, 242, 255, 0.15);
+            color: var(--neon-blue);
+            padding: 15px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            min-width: 60px;
+            justify-content: center;
+        }
+        
+        .data-tag_2 {
+            background: rgba(0, 242, 255, 0.15);
+            color: var(--neon-blue);
+            padding: 15px 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.1rem;
+            display: flex;
+            align-items: center;
+            min-width: 60px;
+            justify-content: center;
+        }
+        
+        .data-text {
+            padding: 1vh 15px;
+            font-size: clamp(1rem, 2.8vh, 1.3rem);
+            flex: 1;
+        }
+        
+        .data-text_2 {
+            padding: 1vh 15px;
+            font-size: clamp(1.8rem, 3.8vh, 1.9rem);
+            flex: 1;
+        }
+        
+        .info-card {
+            background: var(--glass);
+            border: 1px solid var(--border-glow);
+            padding: 1.5vh 20px;
+            /* Reduced vertical padding */
+            border-radius: 8px;
+            font-size: clamp(1rem, 2.5vh, 1.4rem);
+            /* Fluid text size */
+            line-height: 1.4;
+            margin-bottom: 1.5vh;
+        }
+        
+        .info-card_2 {
+            background: var(--glass);
+            border: 1px solid var(--border-glow);
+            padding: 1.5vh 20px;
+            /* Reduced vertical padding */
+            border-radius: 8px;
+            font-size: clamp(1.5rem, 3.5vh, 2rem);
+            /* Fluid text size */
+            line-height: 1.4;
+            margin-bottom: 1.5vh;
+        }
+        
+        .info-card_3 {
+            background: var(--glass);
+            border: 1px solid var(--border-glow);
+            padding: 1.5vh 20px;
+            /* Reduced vertical padding */
+            border-radius: 8px;
+            font-size: clamp(2rem, 5vh, 2.8rem);
+            /* Fluid text size */
+            line-height: 1.4;
+            margin-bottom: 1.5vh;
+        }
+        
+        .eq-display {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(1.5rem, 5vh, 2.2rem);
+            padding: 2vh;
+            margin: 1.5vh 0;
+        }
+        
+        .visual-block {
+            border: 1px solid var(--border-glow);
+            background: rgba(2, 8, 16, 0.5);
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            width: 100%;
+            /* Set a strict responsive height instead of flex/max-height */
+            border-radius: 8px;
+        }
+        
+        .visual-block_2 {
+            height: 100%;
+            width: fit-content;
+            margin: 0 auto;
+            /* <--- ADD THIS LINE */
+            border: 1px solid var(--border-glow);
+            background: rgba(2, 8, 16, 0.5);
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 8px;
+        }
+        
+        .visual-block img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            mix-blend-mode: screen;
+            display: block;
+        }
+        
+        .visual-block_2 img {
+            width: fit-content;
+            height: 100%;
+            object-fit: contain;
+            mix-blend-mode: screen;
+            display: block;
+        }
+        
+        .visual-block_3 img {
+            width: 100;
+            height: fit-content;
+            object-fit: contain;
+            mix-blend-mode: screen;
+            display: block;
+        }
+        
+        .team-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .team-member {
+            background: rgba(0, 242, 255, 0.05);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            padding: 12px 15px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            color: var(--neon-blue);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .part-title {
+            text-align: center;
+            margin: auto;
+        }
+        
+        .part-title h1 {
+            font-size: 6rem;
+            text-shadow: 0 0 40px rgba(0, 242, 255, 0.4);
+        }
+        
+        .part-title h2 {
+            border: none;
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        /* --- FOOTER --- */
+        
+        .hud-bottom {
+            padding: 10px 20px;
+            border-top: 1px solid var(--border-glow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 0 0 15px 15px;
+        }
+        
+        .progress-track {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            margin: 0 30px;
+            position: relative;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--neon-blue);
+            width: 0%;
+            transition: width 0.4s ease;
+            box-shadow: 0 0 8px var(--neon-blue);
+        }
+        
+        button {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 5px 12px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            border-radius: 3px;
+            letter-spacing: 1px;
+        }
+        
+        button:hover {
+            background: var(--neon-blue);
+            color: var(--deep-space);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+
+    <div class="terminal">
+        <div class="hud-top">
+            <div class="status-node">MDP231 // ASU // PRESENTER: <span id="presenter-name" style="color:var(--accent-orange); margin-left: 10px;">TEAM 10</span></div>
+            <div class="counter-glitch" id="slide-counter">01 / 32</div>
+        </div>
+
+        <div class="stage" id="slide-stage">
+            <!-- --- slide1 --- -->
+            <div class="slide" data-presenter="TEAM 10">
+                <div class="grid-split">
+                    <div>
+                        <h1>The Effect of <br><span style="color:var(--neon-pink)">Inflation</span></h1>
+                        <h2 style="border: none; padding:0; color: #ccc; font-size: 2.2rem;">Engineering Economy</h2>
+                        <p style="font-size: 1.6rem; color: #888;">Course Code: MDP231 - Spring 26</p>
+                        <div class="info-card" style="margin-top: 40px; padding: 20px;">
+                            <p style="font-family: 'Orbitron', sans-serif; color: var(--neon-blue); margin-top: 0; font-size: 1.2rem;">PRESENTED BY TEAM 10:</p>
+                            <div class="team-grid">
+                                <div class="team-member"><span>Sara Saber </span><span>2101138</span></div>
+                                <div class="team-member"><span>Bishoy Tarek </span><span>2101067</span></div>
+                                <div class="team-member"><span>Ziad Ahmed </span><span>2101566</span></div>
+                                <div class="team-member"><span>Harvey Hany </span><span>2100914</span></div>
+                                <div class="team-member" style="grid-column: span 2; justify-content: center; gap: 30px;"><span>Mina Ezzat </span><span>2101363</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="visual-block">
+                        <img src="1.png" alt="Engineering HUD Globe">
+                    </div>
+                </div>
+            </div>
+
+            <!-- /* --- slide2 --- */ -->
+            <div class="slide" data-presenter="TEAM 10">
+                <div class="grid-split">
+
+                    <!-- LEFT COLUMN: Groups the Title and the List together -->
+                    <div>
+                        <h2>Presentation Agenda</h2>
+                        <div class="data-list">
+                            <div class="data-row">
+                                <div class="data-tag">01</div>
+                                <div class="data-text">Macroeconomic Impact of Inflation <br><span style="font-size: 1.2rem; color: #aaa;">(Sara Saber)</span></div>
+                            </div>
+                            <div class="data-row">
+                                <div class="data-tag">02</div>
+                                <div class="data-text">Present Worth Analysis Adjusted <br><span style="font-size: 1.2rem; color: #aaa;">(Bishoy Tarek)</span></div>
+                            </div>
+                            <div class="data-row">
+                                <div class="data-tag">03</div>
+                                <div class="data-text">Future Worth Projections <br><span style="font-size: 1.2rem; color: #aaa;">(Ziad Ahmed)</span></div>
+                            </div>
+                            <div class="data-row">
+                                <div class="data-tag">04</div>
+                                <div class="data-text">Analytical Application: Case Study <br><span style="font-size: 1.2rem; color: #aaa;">(Harvey Hany)</span></div>
+                            </div>
+                            <div class="data-row">
+                                <div class="data-tag">05</div>
+                                <div class="data-text">Computational Spreadsheet Modeling <br><span style="font-size: 1.2rem; color: #aaa;">(Mina Ezzat)</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: The Image -->
+                    <div class="visual-block">
+                        <img src="22.png" alt="Timeline Hologram">
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- /* --- slide3 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <div class="part-title" style="margin: 0; display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                    <h1>PART 1</h1>
+                    <h2>Macroeconomic Impact of Inflation</h2>
+                    <p class="highlight" style="font-size: 2rem;">Lead Speaker: Sara Saber Samuel (2101138)</p>
+                </div>
+            </div>
+
+            <!-- /* --- slide4 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <div class="grid-split">
+
+                    <!-- LEFT COLUMN: Groups Title and List together -->
+                    <div>
+                        <h2>What is Inflation?</h2>
+                        <div class="data-list">
+                            <div class="info-card_2">The broad upward movement of prices for goods and services in an economy.</div>
+                            <div class="info-card_2" style="border-left: 4px solid var(--neon-pink);">Represents a decline in the <span class="highlight">purchasing power</span> of money over time.</div>
+                            <div class="info-card_2" style="border-left: 4px solid var(--neon-blue);">For engineers: Materials, labor, and machinery required for a project will inherently cost more in the future than today.</div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Centered Image -->
+                    <div class="visual-block">
+                        <img src="3.png" alt="Inflation Line Graph">
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- /* --- slide5 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <h2>The Concept of Purchasing Power</h2>
+
+                <div class="info-card">
+                    <span class="highlight">Think of purchasing power as a 'basket of goods'.</span>
+                </div>
+
+                <div class="data-row" style="margin-bottom: 20px;">
+                    <div class="data-tag">></div>
+                    <div class="data-text">If 100 units buys a certain amount of concrete today, that same 100 units will buy less concrete in five years due to inflation.</div>
+                </div>
+
+                <div class="data-row" style="border-color: var(--neon-pink); margin-bottom: 20px;">
+                    <div class="data-tag" style="color:var(--neon-pink)">!</div>
+                    <div class="data-text">We cannot evaluate multi-year projects without accounting for this silent loss in value.</div>
+                </div>
+
+                <!-- LANDSCAPE VISUAL BLOCK CENTERED UNDER THE TEXT -->
+                <div class="visual-block_2" style="height: auto; flex: 1; max-height: 40vh; margin-top: 10px;">
+                    <img src="4.png" alt="Purchasing Power Concept">
+                </div>
+            </div>
+
+            <!-- /* --- slide6 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <h2>Understanding Interest Rates</h2>
+                <p style="font-size: 1.6rem;">Economists separate interest rates into two distinct types:</p>
+                <div class="grid-split">
+                    <div class="info-card">
+                        <h3 style="color: var(--neon-blue); font-size: 2rem; margin-top:0;">1. Real Interest Rate</h3>
+                        <p>The pure earning power of an investment. It measures actual growth in wealth, completely ignoring inflation.</p>
+                    </div>
+                    <div class="info-card">
+                        <h3 style="color: var(--accent-orange); font-size: 2rem; margin-top:0;">2. Market (Nominal) Rate</h3>
+                        <p>The everyday rate seen at banks. It includes both the real earning power AND a buffer to cover expected inflation.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- /* --- slide7 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <h2>Types of Inflation in Engineering</h2>
+                <div class="data-list">
+                    <div class="info-card"><span class="highlight">General Inflation:</span> The average price increase across the entire macroeconomy. (Our economic models primarily focus on adjusting for this).</div>
+                    <div class="info-card" style="border-color: rgba(255, 255, 255, 0.2);"><span style="color:var(--neon-blue)">Specific/Differential Inflation:</span> Price changes for specific materials (like steel or copper) that may inflate faster or slower than the general economy.</div>
+                </div>
+
+                <!-- FULL-WIDTH VISUAL BLOCK CENTERED UNDER THE TEXT -->
+                <div class="visual-block_2">
+                    <img src="5.png" alt="Macroeconomy vs Specific Sectors">
+                </div>
+            </div>
+
+            <!-- /* --- slide8 --- */ -->
+            <div class="slide" data-presenter="Sara Saber Samuel // 2101138">
+                <div class="grid-split">
+
+                    <!-- LEFT COLUMN: Groups Title and List together -->
+                    <div>
+                        <h2>Why Engineers Must Care</h2>
+                        <div class="data-list">
+                            <div class="info-card" style="border-left: 5px solid var(--neon-pink);">
+                                <strong style="color:var(--neon-pink); font-size: 1.8rem;">Underestimating Costs:</strong><br> Ignoring inflation leads to massively underfunded projects.
+                            </div>
+                            <div class="info-card">
+                                <strong style="color:var(--neon-blue); font-size: 1.8rem;">Skewed Alternatives:</strong><br> A project with high upfront costs might actually be cheaper long-term than a project with low upfront costs but highly inflating
+                                future maintenance costs.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Centered Image -->
+                    <div class="visual-block">
+                        <img src="6.png" alt="CapEx vs OpEx Balance Scale" style="width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen;">
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- /* --- slide9 --- */ -->
+            <div class="slide " data-presenter="Bishoy Tarek Soliman // 2101067 ">
+                <div class="part-title " style="margin: 0; display: flex; flex-direction: column; justify-content: center; height: 100%; ">
+                    <h1>PART 2</h1>
+                    <h2>Present Worth Analysis Adjusted</h2>
+                    <p class="highlight " style="font-size: 2rem; ">Lead Speaker: Bishoy Tarek Soliman (2101067)</p>
+                </div>
+            </div>
+
+            <!-- /* --- slide10 --- */ -->
+            <div class="slide" data-presenter="Bishoy Tarek Soliman // 2101067">
+                <h2>The Fundamental Interest Rate Equation</h2>
+                <p style="font-size: clamp(1.2rem, 3vh, 1.6rem); margin-bottom: 2vh;">To calculate Present Worth (PW), we must link the Real Rate (i) and the Inflation Rate (f) to find the Market Rate (if).</p>
+
+                <!-- NEW: Side-by-side grid to save vertical space -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 3vh;">
+
+                    <div class="eq-display" style="margin: 0; display: flex; align-items: center; justify-content: center;">
+                        if = i + f + (i * f)
+                    </div>
+
+                    <div class="info-card" style="margin: 0; text-align: center; display: flex; flex-direction: column; justify-content: center;">
+                        <span style="font-size: clamp(1rem, 2.5vh, 1.4rem); color: #ccc;"><strong>Example:</strong> Real return (i) = 8%, Inflation (f) = 4%</span>
+                        <span class="highlight" style="font-size: clamp(1.5rem, 4vh, 2.2rem); margin-top: 10px;">if = 12.32%</span>
+                    </div>
+
+                </div>
+
+                <!-- UPDATED VISUAL BLOCK: Given a strict height so it displays beautifully -->
+                <div class="visual-block_2">
+                    <img src="7.png " alt="Fundamental Interest Rate Visual Aid " style="width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: brightness(1.2) contrast(1.1); ">
+                </div>
+            </div>
+
+            <!-- /* --- slide11 --- */ -->
+            <div class="slide" data-presenter="Bishoy Tarek Soliman // 2101067">
+                <h2>Categorizing Cash Flows</h2>
+                <p style="font-size: clamp(1.2rem, 3vh, 1.6rem); margin-bottom: 2vh;">Before finding PW, we must classify our estimates:</p>
+
+                <div class="grid-split" style="margin-bottom: 3vh; align-items: stretch;">
+                    <div class="info-card" style="background: rgba(0, 242, 255, 0.1); margin-bottom: 0;">
+                        <h3 style="color: var(--neon-blue); margin-top:0;">Constant-Value (Real)</h3>
+                        <p>Estimates made using today's purchasing power (e.g., 'This machine costs 10k today').</p>
+                    </div>
+                    <div class="info-card" style="background: rgba(255, 157, 0, 0.1); margin-bottom: 0;">
+                        <h3 style="color: var(--accent-orange); margin-top:0;">Then-Current (Actual)</h3>
+                        <p>The actual inflated amount of cash/currency that will physically change hands in the future.</p>
+                    </div>
+                </div>
+
+                <!-- WIDE VISUAL BLOCK CENTERED AT THE BOTTOM -->
+                <div class="visual-block_2">
+                    <img src="8.png" alt="Categorizing Cash Flows Diagram" style="width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: brightness(1.2) contrast(1.1);">
+                </div>
+            </div>
+
+            <!-- /* --- slide12 --- */ -->
+            <div class="slide" data-presenter="Bishoy Tarek Soliman // 2101067">
+                <h2>The Golden Rule of Inflation Analysis</h2>
+
+                <div class="data-list" style="margin-bottom: 2vh;">
+                    <div class="data-row">
+                        <div class="data-tag">RULE 1</div>
+                        <div class="data-text">If cash flows are <span class="highlight">Constant-Value</span>, discount them to PW using the <span style="color:var(--neon-blue)">Real Interest Rate (i)</span>.</div>
+                    </div>
+                    <div class="data-row">
+                        <div class="data-tag">RULE 2</div>
+                        <div class="data-text">If cash flows are <span class="highlight">Then-Current (Actual)</span>, discount them to PW using the <span style="color:var(--accent-orange)">Market Interest Rate (if)</span>.</div>
+                    </div>
+                </div>
+
+                <div class="info-card" style="border-color: var(--neon-pink); color: var(--neon-pink); text-align: center; margin-bottom: 2vh;">
+                    <strong>SYSTEM WARNING: Mixing these up is the most common error in engineering economy.</strong>
+                </div>
+
+                <!-- WIDE VISUAL BLOCK CENTERED AT THE BOTTOM -->
+                <div class="visual-block_2">
+                    <img src="9.png" alt="Inflation Calibration Matrix" style="width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: brightness(1.2) contrast(1.1);">
+                </div>
+            </div>
+
+            <!-- /* --- slide13 --- */ -->
+            <div class="slide" data-presenter="Bishoy Tarek Soliman // 2101067">
+
+                <div class="grid-split" style="align-items: center; height: 100%;">
+
+                    <!-- LEFT COLUMN: Groups Title and Text together -->
+                    <div style="padding-right: 2vw;">
+                        <h2 style="margin-top: 0;">PW Method 1: Deflating Actual Values</h2>
+                        <p style="font-size: 1.6rem; margin-bottom: 3vh;">If we know future actual costs, we use the market rate to find Present Worth directly.</p>
+
+                        <!-- Properly Formatted Equation -->
+                        <div class="eq-display" style="font-size: 2.2rem; display: flex; justify-content: center; align-items: center; gap: 15px;">
+                            <span>PW = </span>
+                            <div style="display: inline-flex; flex-direction: column; align-items: center; justify-content: center;">
+                                <!-- Numerator -->
+                                <span style="border-bottom: 2px solid currentColor; padding: 0 15px; padding-bottom: 5px; margin-bottom: 5px;">Actual</span>
+                                <!-- Denominator with Exponent -->
+                                <span style="padding: 0 15px;">(1 + if)<sup>n</sup></span>
+                            </div>
+                        </div>
+                        <p style="font-size: 1.4rem; margin-top: 3vh;">This single calculation simultaneously strips out the inflation effect and accounts for the time value of money.</p>
+                    </div>
+
+                    <!-- RIGHT COLUMN: Centered Image -->
+                    <div class="visual-block_2" style="margin: 0 auto; max-height: 70vh; height: auto;">
+                        <img src="10.png" alt="Inflation Calibration Matrix" style="width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: brightness(1.2) contrast(1.1);">
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- /* --- slide14 --- */ -->
+            <div class="slide" style="display: flex; flex-direction: column; height: 100%;" data-presenter="Bishoy Tarek Soliman // 2101067">
+                <h2>PW Method 2: Two-Step Conversion</h2>
+                <p style="font-size: 1.6rem; margin-bottom: 2vh;">We can also find PW by breaking it into two distinct operations:</p>
+
+                <!-- Cards section: flex-grow lets it stretch to fill the empty vertical space -->
+                <div class="grid-split" style="gap: 3vw; flex-grow: 1; align-items: stretch;">
+
+                    <!-- Card 1: Centered, reduced padding, subtle pink tint -->
+                    <div class="info-card" style="display: flex; flex-direction: column; justify-content: center; padding: 20px; background: rgba(255, 0, 85, 0.05); border-color: rgba(255, 0, 85, 0.3);">
+                        <h3 style="color:var(--neon-pink); margin-top:0; font-size: 2rem; text-align: center; margin-bottom: 10px;">1. Remove Inflation</h3>
+                        <p style="font-size: 1.4rem; text-align: center; color: #ccc; margin: 0;">Find Constant Value:</p>
+
+                        <!-- Equation 1: Fixed fraction line using align-items: stretch -->
+                        <div class="highlight" style="font-family: monospace; font-size: 2.2rem; display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px;">
+                            <span>CV = </span>
+                            <div style="display: inline-flex; flex-direction: column; align-items: stretch; text-align: center;">
+                                <span style="border-bottom: 3px solid currentColor; padding: 0 10px 5px 10px; margin-bottom: 5px;">Actual</span>
+                                <span style="padding: 0 10px;">(1 + f)<sup>n</sup></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Centered, reduced padding, subtle blue tint -->
+                    <div class="info-card" style="display: flex; flex-direction: column; justify-content: center; padding: 20px; background: rgba(0, 242, 255, 0.05); border-color: rgba(0, 242, 255, 0.3);">
+                        <h3 style="color:var(--neon-blue); margin-top:0; font-size: 2rem; text-align: center; margin-bottom: 10px;">2. Discount to Present</h3>
+                        <p style="font-size: 1.4rem; text-align: center; color: #ccc; margin: 0;">Use Real Rate:</p>
+
+                        <!-- Equation 2: Fixed fraction line using align-items: stretch -->
+                        <div class="highlight" style="font-family: monospace; font-size: 2.2rem; display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px;">
+                            <span>PW = </span>
+                            <div style="display: inline-flex; flex-direction: column; align-items: stretch; text-align: center;">
+                                <span style="border-bottom: 3px solid currentColor; padding: 0 10px 5px 10px; margin-bottom: 5px;">CV</span>
+                                <span style="padding: 0 10px;">(1 + i)<sup>n</sup></span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Bottom Banner: Tighter margins and padding to keep it on screen -->
+                <div style="margin-top: 2vh; margin-bottom: 0; padding: 15px; border: 1px dashed var(--accent-orange); background: rgba(255, 157, 0, 0.1); border-radius: 8px; text-align: center;">
+                    <h3 style="margin: 0; font-size: 1.6rem; color: var(--accent-orange);">Both Method 1 and Method 2 yield the exact same Present Worth.</h3>
+                </div>
+            </div>
+            <!-- /* --- slide15 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <div class="part-title " style="margin: 0; display: flex; flex-direction: column; justify-content: center; height: 100%; ">
+                    <h1>PART 3</h1>
+                    <h2>Future Worth Projections & Inflation</h2>
+                    <p class="highlight " style="font-size: 2rem; ">Lead Speaker: Ziad Ahmed Anter (2101566)</p>
+                </div>
+            </div>
+            <!-- /* --- slide16 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <h2>Future Worth & Replacement Studies</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="info-card ">Future Worth (FW) analysis is critical when planning for equipment replacement.</div>
+                        <div class="info-card ">If an asset has a 10-year life cycle, we must know exactly how much capital we need in Year 10 to replace it.</div>
+                        <div class="info-card " style="border-color: var(--neon-pink); color: var(--neon-pink); ">Relying on today's prices guarantees a capital shortfall.</div>
+                    </div>
+                    <div class="visual-block ">[ VISUAL: Glowing blueprint of a machine with a ghosted 'Future Replacement Model' overlaid ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide17 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <h2>Projecting Then-Current Costs</h2>
+                <p style="font-size: 1.6rem; ">To find the actual capital required in the future, we must artificially inflate today's cost estimate.</p>
+                <div class="eq-display ">
+                    Future Actual Cost = Present Constant * (1 + f)^n
+                </div>
+                <div class="info-card " style="text-align: center; ">
+                    This calculation provides the strict target amount for establishing corporate <span class="highlight ">Sinking Funds</span>.
+                </div>
+            </div>
+            <!-- /* --- slide18 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <h2>The Purchasing Power Formula</h2>
+                <div class="grid-split ">
+                    <div>
+                        <p style="font-size: 1.6rem; ">Mathematically proving how much value future money loses.</p>
+                        <div class="eq-display " style="font-size: 1.8rem; ">Power = 1 / (1 + f)^n</div>
+                        <div class="info-card ">
+                            <strong>Example:</strong> At 5% inflation over 10 years, the formula yields ~0.61.<br><br>This means 1 unit in 10 years will only buy what 0.61 units buys today.
+                        </div>
+                    </div>
+                    <div class="visual-block ">[ GRAPHIC: Digital fuel gauge dropping from 100% capacity down to 61% ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide19 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <h2>Calculating Future Worth of Capital</h2>
+                <div class="info-card " style="text-align: center; ">
+                    <p style="font-size: 1.6rem; margin:0; ">When investing present capital to meet future inflated liabilities, we use the <span class="highlight ">Market Rate (if)</span>.</p>
+                </div>
+                <div class="eq-display ">
+                    FW = PW * (1 + if)^n
+                </div>
+                <p style="text-align: center; font-size: 1.6rem; color: var(--neon-blue); ">The market rate ensures our invested capital outpaces the inflation rate.</p>
+            </div>
+            <!-- /* --- slide20 --- */ -->
+            <div class="slide " data-presenter="Ziad Ahmed Anter // 2101566 ">
+                <h2>The Risk of Ignoring Inflation in FW</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="info-card "><strong>Scenario:</strong> A company saves 100k for a replacement based on today's prices.</div>
+                        <div class="info-card "><strong>Condition:</strong> Inflation averages 6% over 8 years.</div>
+                        <div class="info-card " style="background: rgba(255,0,85,0.1); border-color: var(--neon-pink); ">
+                            <strong>Actual Cost:</strong> 100,000 * (1.06)^8 = <span class="highlight ">159,384</span>.<br>
+                            <strong>Result:</strong> Firm is left with a massive ~60,000 unit deficit.
+                        </div>
+                    </div>
+                    <div class="visual-block " style="border-color: var(--neon-pink); color: var(--neon-pink); ">[ WARNING HUD: Flashing red deficit alert over a broken bank data-vault ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide21 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <div class="part-title " style="margin: 0; display: flex; flex-direction: column; justify-content: center; height: 100%; ">
+                    <h1>PART 4</h1>
+                    <h2>Analytical Application: Hand-Calculated Case Study</h2>
+                    <p class="highlight " style="font-size: 2rem; ">Lead Speaker: Harvey Hany Makram (2100914)</p>
+                </div>
+            </div>
+            <!-- /* --- slide22 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <h2>Problem Statement (Equipment Lifecycle)</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="info-card ">A manufacturing plant is purchasing a <span class="highlight ">CNC machine</span> for 50,000 units.</div>
+                        <div class="data-row ">
+                            <div class="data-tag ">AOC</div>
+                            <div class="data-text ">Annual Operating Cost estimated at 10,000 in today's constant units.</div>
+                        </div>
+                        <div class="data-row ">
+                            <div class="data-tag ">LIFE</div>
+                            <div class="data-text ">Machine has a 4-year life.</div>
+                        </div>
+                        <div class="data-row ">
+                            <div class="data-tag ">RATES</div>
+                            <div class="data-text ">Real MARR (i) is 8%, expected inflation (f) is 5%.</div>
+                        </div>
+                        <div class="info-card " style="border-color: var(--neon-blue); "><strong>TASK:</strong> Calculate the total Present Worth of the machine's lifecycle.</div>
+                    </div>
+                    <div class="visual-block ">[ HUD SCHEMATIC: 3D wireframe of a CNC milling machine with technical dimension lines ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide23 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <h2>Step 1: Determine Market Rate (if)</h2>
+                <div class="info-card " style="font-size: 2rem; text-align: center; line-height: 2; padding: 40px; ">
+                    Applying the linkage equation to find correct interest rate:<br><br>
+                    <span style="color:var(--neon-blue) ">i = 0.08</span> | <span style="color:var(--accent-orange) ">f = 0.05</span><br> if = i + f + (i * f)<br> if = 0.08 + 0.05 + (0.08 * 0.05) = <span class="highlight " style="font-size: 3rem; ">13.4%</span>
+                </div>
+            </div>
+            <!-- /* --- slide24 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <h2>Step 2: Projecting Actual AOC (Then-Current)</h2>
+                <p style="font-size: 1.6rem; ">The 10,000 AOC must be inflated year by year using f = 5%:</p>
+                <div class="data-list ">
+                    <div class="data-row ">
+                        <div class="data-tag ">YR 1</div>
+                        <div class="data-text ">10,000 * (1.05)^1 = <span class="highlight ">10,500</span></div>
+                    </div>
+                    <div class="data-row ">
+                        <div class="data-tag ">YR 2</div>
+                        <div class="data-text ">10,000 * (1.05)^2 = <span class="highlight ">11,025</span></div>
+                    </div>
+                    <div class="data-row ">
+                        <div class="data-tag ">YR 3</div>
+                        <div class="data-text ">10,000 * (1.05)^3 = <span class="highlight ">11,576</span></div>
+                    </div>
+                    <div class="data-row ">
+                        <div class="data-tag ">YR 4</div>
+                        <div class="data-text ">10,000 * (1.05)^4 = <span class="highlight ">12,155</span></div>
+                    </div>
+                </div>
+            </div>
+            <!-- /* --- slide25 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <h2>Step 3: Discounting Actual to PW</h2>
+                <p style="font-size: 1.6rem; ">Discount the Actual values using the Market Rate (if = 13.4%):</p>
+                <div class="grid-split " style="gap: 20px; ">
+                    <div class="info-card ">PW1 = 10,500 / (1.134)^1 = 9,259</div>
+                    <div class="info-card ">PW2 = 11,025 / (1.134)^2 = 8,573</div>
+                    <div class="info-card ">PW3 = 11,576 / (1.134)^3 = 7,938</div>
+                    <div class="info-card ">PW4 = 12,155 / (1.134)^4 = 7,350</div>
+                </div>
+                <div class="eq-display " style="border-color: var(--neon-blue); color: var(--neon-blue); ">
+                    Total PW of AOC = 33,120
+                </div>
+            </div>
+            <!-- /* --- slide26 --- */ -->
+            <div class="slide " data-presenter="Harvey Hany Makram // 2100914 ">
+                <h2>Step 4: The Constant-Dollar Shortcut</h2>
+                <p style="font-size: 1.6rem; ">Verification using the Golden Rule: We can just use Constant Units (10k) and Real Rate (i = 8%).</p>
+                <div class="eq-display " style="font-size: 1.8rem; ">
+                    PW = 10,000 * (P/A, 8%, 4) <br> PW = 10,000 * [(1.08^4 - 1) / (0.08 * 1.08^4)] <br> PW = 10,000 * 3.3121 = 33,121
+                </div>
+                <div class="info-card " style="text-align: center; font-size: 2rem; ">
+                    Total Project PW = Initial Cost + PW(AOC) <br> 50,000 + 33,121 = <span class="highlight " style="font-size: 2.5rem; ">83,121</span>
+                </div>
+            </div>
+            <!-- /* --- slide27 --- */ -->
+            <div class="slide " data-presenter="Mina Ezzat Soliman // 2101363 ">
+                <div class="part-title " style="margin: 0; display: flex; flex-direction: column; justify-content: center; height: 100%; ">
+                    <h1>PART 5</h1>
+                    <h2>Computational Application: Spreadsheet Modeling</h2>
+                    <p class="highlight " style="font-size: 2rem; ">Lead Speaker: Mina Ezzat Soliman (2101363)</p>
+                </div>
+            </div>
+            <!-- /* --- slide28 --- */ -->
+            <div class="slide " data-presenter="Mina Ezzat Soliman // 2101363 ">
+                <h2>Translating the Math to a Spreadsheet</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="info-card ">Spreadsheet modeling reduces human error in complex compounding calculations.</div>
+                        <div class="info-card ">The model requires a dedicated 'Input Block' for variables: Real Rate (i), Inflation (f), and Life (N).</div>
+                        <div class="info-card " style="font-family: monospace; ">The Market Rate cell uses absolute references:<br><br><span class="highlight ">=$B$1+$B$2+($B$1*$B$2)</span></div>
+                    </div>
+                    <div class="visual-block ">[ UI MOCKUP: Sleek dark-mode spreadsheet grid highlighting the Input Block ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide29 --- */ -->
+            <div class="slide " data-presenter="Mina Ezzat Soliman // 2101363 ">
+                <h2>Building the Cash Flow Table</h2>
+                <p style="font-size: 1.6rem; ">We set up columns for Year (0-4), Constant-Value Cash Flow, and Actual Cash Flow.</p>
+                <div class="eq-display " style="font-size: 1.8rem; ">
+                    To generate Actual Cash Flow dynamically:<br>
+                    <span style="color:var(--neon-blue) ">=Constant_Cell * (1 + $B$2)^Year_Cell</span>
+                </div>
+                <div class="info-card " style="text-align: center; ">
+                    This automatically inflates the baseline costs down the column using the inflation parameter.
+                </div>
+            </div>
+            <!-- /* --- slide30--- */ -->
+            <div class="slide " data-presenter="Mina Ezzat Soliman // 2101363 ">
+                <h2>Applying Financial Functions</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="data-row ">
+                            <div class="data-tag ">></div>
+                            <div class="data-text ">Excel's native <span class="highlight ">=NPV()</span> function handles the discounting.</div>
+                        </div>
+                        <div class="data-row ">
+                            <div class="data-tag ">SYN</div>
+                            <div class="data-text ">Syntax: =NPV(rate, value1, [value2], ...)</div>
+                        </div>
+                        <div class="data-row " style="border-left-color: var(--accent-orange); ">
+                            <div class="data-tag " style="background:rgba(255,157,0,0.2); color:var(--accent-orange); ">CRITICAL</div>
+                            <div class="data-text ">Point the rate argument to the calculated Market Rate (if) cell, and highlight the Actual Cash Flow column.</div>
+                        </div>
+                        <div class="info-card ">Total PW = Initial Cost + NPV(Market Rate, Actual Cash Flows).</div>
+                    </div>
+                    <div class="visual-block ">[ UI MOCKUP: Spreadsheet showing the NPV formula selecting the Actual Cash Flow column ]</div>
+                </div>
+            </div>
+            <!-- /* --- slide31 --- */ -->
+            <div class="slide " data-presenter="Mina Ezzat Soliman // 2101363 ">
+                <h2>Validating the Model</h2>
+                <div class="info-card " style="text-align: center; margin-bottom: 30px; ">
+                    <p style="margin:0; ">To prove robustness, we run a secondary =NPV function using the Real Rate (i) against the Constant Cash Flow column.</p>
+                </div>
+                <div class="eq-display " style="display: flex; justify-content: space-around; font-size: 1.6rem; align-items: center; ">
+                    <span>NPV(Market Rate, Actual CF)</span>
+                    <span style="color:white; font-size: 2rem; ">====</span>
+                    <span>NPV(Real Rate, Constant CF)</span>
+                </div>
+                <p style="text-align: center; font-size: 1.8rem; " class="highlight ">Both outputs must match exactly. This acts as a built-in error check.</p>
+            </div>
+            <!-- /* --- slide32 --- */ -->
+            <div class="slide " data-presenter="TEAM 10 ">
+                <h2 style="text-align: center; border:none; font-size: 3.5rem; ">Conclusion & Summary</h2>
+                <div class="grid-split ">
+                    <div class="data-list ">
+                        <div class="data-row ">
+                            <div class="data-tag ">></div>
+                            <div class="data-text ">Inflation mathematically erodes purchasing power.</div>
+                        </div>
+                        <div class="data-row ">
+                            <div class="data-tag ">></div>
+                            <div class="data-text ">Market rates must be derived using: if = i + f + (i * f)</div>
+                        </div>
+                        <div class="data-row ">
+                            <div class="data-tag ">></div>
+                            <div class="data-text ">Constant strictly pairs with Real (i); Actual strictly pairs with Market (if).</div>
+                        </div>
+                    </div>
+                    <div class="info-card " style="border-color: var(--neon-pink); text-align: center; display: flex; flex-direction: column; justify-content: center; ">
+                        <h3 style="color:var(--neon-pink); font-size: 2.5rem; margin:0; ">FINAL DIRECTIVE</h3>
+                        <p style="font-size: 1.6rem; ">Ignoring inflation invalidates engineering economy studies and leads to catastrophic capital deficits.</p>
+                        <p style="color:var(--neon-blue); font-family: 'Orbitron'; margin-top:30px; ">[ END OF TRANSMISSION ]</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        <div class="hud-bottom">
+            <button onclick="changeSlide(-1)">[ < ] PREV_SLIDE</button>
+
+            <div class="progress-track">
+                <div class="progress-fill" id="progress-bar"></div>
+            </div>
+
+            <button onclick="changeSlide(1)">NEXT_SLIDE [ > ]</button>
+        </div>
+    </div>
+
+    <script>
+        // --- NAVIGATION LOGIC ---
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const counter = document.getElementById('slide-counter');
+        const progressBar = document.getElementById('progress-bar');
+        const presenterNameDisplay = document.getElementById('presenter-name');
+
+        function updateUI() {
+            if (!slides || slides.length === 0) return; // Safety check
+
+            // 1. Update the Active Slide Class
+            slides.forEach((s, i) => {
+                if (i === currentSlide) {
+                    s.classList.add('active');
+                } else {
+                    s.classList.remove('active');
+                }
+            });
+
+            // 2. Automatically Calculate Slide Numbers
+            const totalSlides = slides.length;
+            const slideNum = (currentSlide + 1).toString().padStart(2, '0');
+            if (counter) counter.innerText = `${slideNum} / ${totalSlides}`;
+
+            // 3. Update Progress Bar
+            if (progressBar) {
+                const progressPercent = (currentSlide / (totalSlides - 1)) * 100;
+                progressBar.style.width = `${progressPercent}%`;
+            }
+
+            // 4. Safely Update Presenter Name
+            if (presenterNameDisplay && slides[currentSlide]) {
+                let presenter = slides[currentSlide].getAttribute('data-presenter');
+                // If the attribute is missing or empty, default back to TEAM 10
+                if (!presenter || presenter.trim() === " ") {
+                    presenter = "TEAM 10 ";
+                }
+                presenterNameDisplay.innerText = presenter;
+            }
+        }
+
+        function changeSlide(direction) {
+            currentSlide += direction;
+            // Keep within bounds
+            if (currentSlide < 0) currentSlide = 0;
+            if (currentSlide >= slides.length) currentSlide = slides.length - 1;
+            updateUI();
+        }
+
+        // Keyboard navigation (Fixed extra spaces)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") changeSlide(1);
+            if (e.key === "ArrowLeft" || e.key === "ArrowUp") changeSlide(-1);
+        });
+
+        // Run once on load
+        updateUI();
+
+        // --- BACKGROUND ANIMATION ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const particles = [];
+        const colors = ['rgba(0, 242, 255, 0.2)', 'rgba(255, 157, 0, 0.1)'];
+
+        for (let i = 0; i < 40; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 50 + 10,
+                speedX: (Math.random() - 0.5) * 0.5,
+                speedY: (Math.random() - 0.5) * 0.5,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                type: Math.random() > 0.5 ? 'rect' : 'circle'
+            });
+        }
+
+        function animateBg() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.x += p.speedX;
+                p.y += p.speedY;
+                if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                if (p.type === 'circle') ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                else ctx.rect(p.x, p.y, p.size, p.size);
+                ctx.stroke();
+            });
+            requestAnimationFrame(animateBg);
+        }
+        animateBg();
+    </script>
+</body>
+
+</html>
